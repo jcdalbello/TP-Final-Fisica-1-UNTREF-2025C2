@@ -98,6 +98,24 @@ canvas.addEventListener('mousedown', (e) => {
     draw();
 });
 
+function ensureCounterClockwise(puntos) {
+    let sum = 0;
+    for (let i = 0; i < puntos.length; i++) {
+        const p1 = puntos[i];
+        const p2 = puntos[(i + 1) % puntos.length];
+        sum += (p2.x - p1.x) * (p2.y + p1.y);
+    }
+    
+    // En coordenadas de pantalla (Y hacia abajo), 
+    // una suma NEGATIVA (< 0) indica sentido HORARIO.
+    // Nosotros queremos Antihorario, así que si es < 0, invertimos.
+    if (sum < 0) { 
+        return puntos.reverse();
+    }
+    
+    return puntos;
+}
+
 function finishPolygonSetup() {
     instructions.innerHTML = `
         <span class="text-cyan-400 font-bold">¡Polígono cerrado!</span><br>
@@ -105,6 +123,9 @@ function finishPolygonSetup() {
     `;
     controls.classList.remove('hidden');
     statsDiv.classList.remove('hidden');
+
+    // Forzamos el orden de los puntos antes de guardar el estado final
+    points = ensureCounterClockwise(points); 
     
     laser = {
         x: (points[0].x + points[1].x) / 2,
