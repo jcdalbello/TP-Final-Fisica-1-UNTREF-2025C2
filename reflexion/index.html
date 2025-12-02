@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Reflexión de Luz</title>
+    <!-- Librería externa (Tailwind CSS) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vinculación a tu archivo de estilos personalizado -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="panel">
+    <h1 class="text-xl font-bold mb-3 text-cyan-400 flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        Simulador de Óptica
+    </h1>
+    
+    <p class="text-sm text-gray-300 mb-6 leading-relaxed" id="instructions">
+        1. Haz clic en el área negra para añadir vértices.<br>
+        2. Cierra el polígono haciendo clic cerca del punto inicial.
+    </p>
+
+    <div id="controls" class="hidden space-y-5">
+        
+        <!-- Control Principal de Ángulo -->
+        <div>
+            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Ángulo de Disparo</label>
+            
+            <div class="flex items-center bg-slate-800 rounded-lg border border-slate-600 p-1 shadow-inner">
+                <button id="btnMinus" class="w-10 h-10 flex items-center justify-center text-cyan-400 hover:bg-slate-700 hover:text-cyan-300 rounded-md transition active:bg-slate-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                
+                <input type="number" id="angleInput" min="1" max="179" value="45" 
+                       class="flex-1 bg-transparent text-white font-mono text-xl text-center focus:outline-none">
+                <span class="text-gray-500 font-mono mr-1">°</span>
+
+                <button id="btnPlus" class="w-10 h-10 flex items-center justify-center text-cyan-400 hover:bg-slate-700 hover:text-cyan-300 rounded-md transition active:bg-slate-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Panel Desplegable de Configuración -->
+        <div id="settingsPanel" class="hidden mt-3 p-3 transition-all duration-300 bg-slate-800/50 rounded-lg border border-slate-700/50 space-y-4">
+            
+            <!-- Slider Ángulo -->
+            <div>
+                <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Ajuste Fino Ángulo</label>
+                <input type="range" id="angleSlider" min="1" max="179" value="45">
+                <div class="flex justify-between text-[10px] text-gray-500 mt-1 font-mono px-1">
+                    <span>1°</span>
+                    <span>179°</span>
+                </div>
+            </div>
+
+            <!-- Input Cantidad de Rebotes -->
+            <div class="border-t border-slate-700 pt-3">
+                <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Límite de Rebotes</label>
+                <div class="flex items-center bg-slate-900 rounded-lg border border-slate-600 p-1 shadow-inner">
+                    <input type="number" id="bounceInput" min="1" max="1000" value="10" 
+                           class="w-full bg-transparent text-white font-mono text-sm text-center focus:outline-none py-1 placeholder-slate-500"
+                           placeholder="Ej: 50">
+                </div>
+                <p class="text-[9px] text-gray-500 mt-1 text-center">Valor recomendado: 1 - 200</p>
+            </div>
+
+            <!-- Slider Velocidad -->
+            <div class="border-t border-slate-700 pt-3">
+                <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Velocidad Animación</label>
+                <input type="range" id="speedSlider" min="1" max="100" value="30">
+                <div class="flex justify-between text-[10px] text-gray-500 mt-1 font-mono px-1">
+                    <span>Lento</span>
+                    <span>Rápido</span>
+                </div>
+            </div>
+
+        </div>
+        
+        <!-- Botones de Acción -->
+        <div class="grid grid-cols-2 gap-3 pt-2">
+            <button id="btnAnimate" class="col-span-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-3 rounded-lg transition shadow-lg shadow-emerald-900/50 flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                </svg>
+                Animar Trayectoria
+            </button>
+
+            <button id="btnConfigToggle" class="bg-slate-700 hover:bg-slate-600 text-cyan-400 font-semibold py-2 px-3 rounded-lg transition border border-slate-600 text-xs flex items-center justify-center gap-1 group">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 group-hover:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Configurar
+            </button>
+            <button id="btnReset" class="bg-red-900/40 hover:bg-red-900/60 text-red-200 hover:text-white font-semibold py-2 px-3 rounded-lg transition border border-red-900/50 text-xs">
+                Reiniciar
+            </button>
+        </div>
+        
+        <p class="text-xs text-gray-500 text-center italic border-t border-slate-700 pt-3">
+            * Haz clic en las paredes para reposicionar el láser.
+        </p>
+    </div>
+    
+    <div id="stats" class="mt-4 text-xs font-mono text-emerald-400 hidden bg-slate-900/50 p-2 rounded text-center border border-emerald-900/30">
+        Rebotes: <span id="bounceCount" class="font-bold text-lg">0</span>
+    </div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<!-- Enlazamos el archivo Javascript externo -->
+<script src="script.js"></script>
+
+</body>
+</html>
