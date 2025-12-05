@@ -2,82 +2,82 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
 // UI Elements
-const instructions = document.getElementById('instructions');
-const controls = document.getElementById('controls');
-const angleInput = document.getElementById('angleInput');
-const angleSlider = document.getElementById('angleSlider');
-const speedSlider = document.getElementById('speedSlider');
-const bounceInput = document.getElementById('bounceInput');
-const settingsPanel = document.getElementById('settingsPanel');
-const btnMinus = document.getElementById('btnMinus');
-const btnPlus = document.getElementById('btnPlus');
-const btnReset = document.getElementById('btnReset');
-const btnConfigToggle = document.getElementById('btnConfigToggle');
-const btnAnimate = document.getElementById('btnAnimate');
-const statsDiv = document.getElementById('stats');
-const bounceCountSpan = document.getElementById('bounceCount');
-const modeInstructions = document.getElementById('modeInstructions');
+const instrucciones = document.getElementById('instructions');
+const controles = document.getElementById('controls');
+const inputDelAngulo = document.getElementById('angleInput');
+const sliderDelAngulo = document.getElementById('angleSlider');
+const sliderDeVelocidad = document.getElementById('speedSlider');
+const inputDeRebote = document.getElementById('bounceInput');
+const panelDeOpciones = document.getElementById('settingsPanel');
+const botonMenos = document.getElementById('btnMinus');
+const botonMas = document.getElementById('btnPlus');
+const botonReset = document.getElementById('btnReset');
+const botonToggleOpciones = document.getElementById('btnConfigToggle');
+const botonAnimar = document.getElementById('btnAnimate');
+const divEstadisticas = document.getElementById('stats');
+const spanContadorRebotes = document.getElementById('bounceCount');
+const instruccionesDeModo = document.getElementById('modeInstructions');
 
 // Controles de refracción
-const btnModeReflection = document.getElementById('btnModeReflection');
-const btnModeRefraction = document.getElementById('btnModeRefraction');
-const refractionControls = document.getElementById('refractionControls');
+const botonModoReflexion = document.getElementById('btnModeReflection');
+const botonModoRefraccion = document.getElementById('btnModeRefraction');
+const controlesDeReflaccion = document.getElementById('refractionControls');
 const nSlider = document.getElementById('nSlider');
-const nValueDisplay = document.getElementById('nValueDisplay');
-const btnAddMedium = document.getElementById('btnAddMedium');
-const btnClearMedia = document.getElementById('btnClearMedia');
-const mediaList = document.getElementById('mediaList');
+const nValoresParaMostrar = document.getElementById('nValueDisplay');
+const botonAgregarMedio = document.getElementById('btnAddMedium');
+const botonLimpiarMedia = document.getElementById('btnClearMedia');
+const listaDeMedia = document.getElementById('mediaList');
 
 // State
-let width, height;
-let points = []; // Puntos del polígono principal
-let isClosed = false;
+let ancho, altura;
+let puntos = []; // Puntos del polígono principal
+let estaCerrado = false;
 let laser = null;
-let laserAngle = 45;
-let maxBounces = 10;
+let anguloDelLaser = 45;
+let maximosRebotes = 10;
 
 // Estado para medios
-let media = []; // Array de medios { name, n, color, points, isDrawing }
-let isDrawingMedium = false;
-let currentMediumIndex = -1;
-let simulationMode = 'reflection'; // 'reflection' o 'refraction'
-let refractiveIndex = 1.5;
+let medios = []; // Array de medios { name, n, color, points, isDrawing }
+let estaDibujandoUnMedio = false;
+let indiceActualMedio = -1;
+let modoDeSimulacion = 'reflection'; // 'reflection' o 'refraction'
+let indiceDeRefraxion = 1.5;
 
 // Animation State
-let isAnimating = false;
-let animationProgress = 1.0;
-let animationSpeed = 0.015;
-let animationId = null;
+let estaAnimando = false;
+let progresoDeAnimacion = 1.0;
+let velocidadDeAnimacion = 0.015;
+let idDeAnimacion = null;
 
 // Resize handling
-function resize() {
-    width = window.innerWidth;
-    height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
-    if (!isAnimating) draw();
+function redimensionar() {
+    ancho = window.innerWidth;
+    altura = window.innerHeight;
+    canvas.width = ancho;
+    canvas.height = altura;
+    if (!estaAnimando) dibujar();
 }
-window.addEventListener('resize', resize);
-resize();
+window.addEventListener('resize', redimensionar);
+redimensionar();
 
 // ==================== FUNCIONES MATEMÁTICAS ====================
 
-function dist(p1, p2) {
+function distancia(p1, p2) {
     return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
 }
 
-function dot(v1, v2) {
+function productoPunto(v1, v2) {
     return v1.x * v2.x + v1.y * v2.y;
 }
 
-function normalize(v) {
+function normalizar(v) {
     const len = Math.sqrt(v.x * v.x + v.y * v.y);
     if (len === 0) return { x: 0, y: 0 };
     return { x: v.x / len, y: v.y / len };
 }
 
 // Intersección rayo-segmento
-function getIntersection(rayOrigin, rayDir, p1, p2) {
+function calcularInterseccion(rayOrigin, rayDir, p1, p2) {
     const denominator = rayDir.x * (p1.y - p2.y) - rayDir.y * (p1.x - p2.x);
     if (Math.abs(denominator) < 0.0001) return null;
 
@@ -95,7 +95,7 @@ function getIntersection(rayOrigin, rayDir, p1, p2) {
 }
 
 // Función CRÍTICA: Asegurar orden antihorario
-function ensureCounterClockwise(polygon) {
+function comprobarSentidoHorario(polygon) {
     if (polygon.length < 3) return polygon;
 
     // Calcular área con signo (fórmula del lazo)
@@ -117,7 +117,7 @@ function ensureCounterClockwise(polygon) {
 }
 
 // Punto dentro de polígono
-function isPointInPolygon(point, polygon) {
+function estaElPuntoEnElPoligono(point, polygon) {
     let inside = false;
     for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
         const xi = polygon[i].x, yi = polygon[i].y;
@@ -131,17 +131,17 @@ function isPointInPolygon(point, polygon) {
 }
 
 // Refracción
-function refract(incident, normal, n1, n2) {
+function refractar(incident, normal, n1, n2) {
     // Caso especial: mismos índices de refracción (sin refracción)
     if (Math.abs(n1 - n2) < 0.0001) {
         return { x: incident.x, y: incident.y };
     }
     
-    const i = normalize(incident);
-    const n = normalize(normal);
+    const i = normalizar(incident);
+    const n = normalizar(normal);
     
     const eta = n1 / n2;
-    const cosi = -dot(i, n);
+    const cosi = -productoPunto(i, n);
     const sin2t = eta * eta * (1.0 - cosi * cosi);
     
     if (sin2t > 1.0) {
@@ -154,12 +154,12 @@ function refract(incident, normal, n1, n2) {
     const rx = eta * i.x + (eta * cosi - cost) * n.x;
     const ry = eta * i.y + (eta * cosi - cost) * n.y;
     
-    return normalize({ x: rx, y: ry });
+    return normalizar({ x: rx, y: ry });
 }
 
 // Reflexión
-function reflect(dir, normal) {
-    const dDotN = dot(dir, normal);
+function reflejar(dir, normal) {
+    const dDotN = productoPunto(dir, normal);
     return {
         x: dir.x - 2 * dDotN * normal.x,
         y: dir.y - 2 * dDotN * normal.y
@@ -169,59 +169,59 @@ function reflect(dir, normal) {
 // ==================== INTERACCIÓN ====================
 
 canvas.addEventListener('mousedown', (e) => {
-    if (isAnimating) stopAnimation();
+    if (estaAnimando) detenerAnimacion();
 
     const rect = canvas.getBoundingClientRect();
     const mouse = { x: e.clientX - rect.left, y: e.clientY - rect.top };
 
-    if (isDrawingMedium) {
+    if (estaDibujandoUnMedio) {
         // Estamos dibujando un medio
-        const medium = media[currentMediumIndex];
+        const medium = medios[indiceActualMedio];
 
         // Cerrar medio si hacemos clic cerca del primer punto
-        if (medium.points.length > 2 && dist(mouse, medium.points[0]) < 20) {
-            medium.points = ensureCounterClockwise(medium.points);
+        if (medium.points.length > 2 && distancia(mouse, medium.points[0]) < 20) {
+            medium.points = comprobarSentidoHorario(medium.points);
             medium.isDrawing = false;
-            isDrawingMedium = false;
-            currentMediumIndex = -1;
+            estaDibujandoUnMedio = false;
+            indiceActualMedio = -1;
 
-            instructions.innerHTML = `
+            instrucciones.innerHTML = `
                 <span class="text-green-400 font-bold">¡Medio creado!</span><br>
                 El rayo se refractará al atravesar este medio.
             `;
 
-            updateMediaList();
+            actualizarListaDeMedios();
         } else {
             // Añadir punto al medio
             medium.points.push(mouse);
         }
-    } else if (!isClosed) {
+    } else if (!estaCerrado) {
         // Dibujar polígono principal
-        if (points.length > 2 && dist(mouse, points[0]) < 20) {
-            isClosed = true;
-            finishPolygonSetup();
+        if (puntos.length > 2 && distancia(mouse, puntos[0]) < 20) {
+            estaCerrado = true;
+            terminarCreacionDelPoligono();
         } else {
-            points.push(mouse);
+            puntos.push(mouse);
         }
     } else {
         // Colocar láser
-        findClosestWallPoint(mouse);
+        encontrarPuntoDeParedMasCercano(mouse);
     }
 
-    draw();
+    dibujar();
 });
 
 canvas.addEventListener('mousemove', (e) => {
-    if (!isDrawingMedium) return;
+    if (!estaDibujandoUnMedio) return;
 
     const rect = canvas.getBoundingClientRect();
     const mouse = { x: e.clientX - rect.left, y: e.clientY - rect.top };
 
     // Redibujar con línea temporal
-    draw();
+    dibujar();
 
     // Dibujar línea temporal para el medio
-    const medium = media[currentMediumIndex];
+    const medium = medios[indiceActualMedio];
     if (medium.points.length > 0) {
         ctx.beginPath();
         ctx.strokeStyle = '#8b5cf6';
@@ -234,7 +234,7 @@ canvas.addEventListener('mousemove', (e) => {
         ctx.setLineDash([]);
 
         // Mostrar punto de cierre
-        if (medium.points.length >= 3 && dist(mouse, medium.points[0]) < 30) {
+        if (medium.points.length >= 3 && distancia(mouse, medium.points[0]) < 30) {
             ctx.beginPath();
             ctx.arc(medium.points[0].x, medium.points[0].y, 8, 0, Math.PI * 2);
             ctx.fillStyle = '#8b5cf680';
@@ -243,15 +243,15 @@ canvas.addEventListener('mousemove', (e) => {
     }
 });
 
-function findClosestWallPoint(mouse) {
+function encontrarPuntoDeParedMasCercano(mouse) {
     let minDist = Infinity;
     let closest = null;
 
-    for (let i = 0; i < points.length; i++) {
-        const p1 = points[i];
-        const p2 = points[(i + 1) % points.length];
+    for (let i = 0; i < puntos.length; i++) {
+        const p1 = puntos[i];
+        const p2 = puntos[(i + 1) % puntos.length];
 
-        const l2 = dist(p1, p2) ** 2;
+        const l2 = distancia(p1, p2) ** 2;
         if (l2 === 0) continue;
         let t = ((mouse.x - p1.x) * (p2.x - p1.x) + (mouse.y - p1.y) * (p2.y - p1.y)) / l2;
         t = Math.max(0, Math.min(1, t));
@@ -261,7 +261,7 @@ function findClosestWallPoint(mouse) {
             y: p1.y + t * (p2.y - p1.y)
         };
 
-        const d = dist(mouse, proj);
+        const d = distancia(mouse, proj);
         if (d < minDist) {
             minDist = d;
             closest = { ...proj, wallIndex: i };
@@ -275,85 +275,85 @@ function findClosestWallPoint(mouse) {
 
 // ==================== FUNCIONES DE MEDIOS ====================
 
-function setSimulationMode(mode) {
-    simulationMode = mode;
+function establecerModoDeSimulacion(mode) {
+    modoDeSimulacion = mode;
 
     // Actualizar botones
-    btnModeReflection.classList.toggle('active', mode === 'reflection');
-    btnModeRefraction.classList.toggle('active', mode === 'refraction');
+    botonModoReflexion.classList.toggle('active', mode === 'reflection');
+    botonModoRefraccion.classList.toggle('active', mode === 'refraction');
 
     // Mostrar/ocultar controles de refracción
-    refractionControls.classList.toggle('hidden', mode === 'reflection');
+    controlesDeReflaccion.classList.toggle('hidden', mode === 'reflection');
 
     // Actualizar instrucciones
     if (mode === 'reflection') {
-        modeInstructions.textContent = '* Haz clic en las paredes para reposicionar el láser.';
+        instruccionesDeModo.textContent = '* Haz clic en las paredes para reposicionar el láser.';
     } else {
-        modeInstructions.textContent = '* Usa "Añadir Medio" para dibujar zonas de refracción.';
+        instruccionesDeModo.textContent = '* Usa "Añadir Medio" para dibujar zonas de refracción.';
     }
 
     // Detener animación y redibujar
-    stopAnimation();
-    draw();
+    detenerAnimacion();
+    dibujar();
 }
 
-function updateRefractiveIndex(value) {
-    refractiveIndex = parseFloat(value) / 100;
+function actualizarIndiceDeRefraccion(value) {
+    indiceDeRefraxion = parseFloat(value) / 100;
     nSlider.value = value;
-    nValueDisplay.textContent = refractiveIndex.toFixed(2);
+    nValoresParaMostrar.textContent = indiceDeRefraxion.toFixed(2);
 
     // Actualizar todos los medios en dibujo
-    media.forEach(medium => {
+    medios.forEach(medium => {
         if (medium.isDrawing) {
-            medium.n = refractiveIndex;
+            medium.n = indiceDeRefraxion;
         }
     });
 
-    if (isAnimating) stopAnimation();
-    draw();
+    if (estaAnimando) detenerAnimacion();
+    dibujar();
 }
 
-function addMedium() {
-    if (!isClosed) {
+function agregarMedio() {
+    if (!estaCerrado) {
         alert('Primero debes cerrar el polígono principal.');
         return;
     }
 
     // Crear nuevo medio
     const medium = {
-        name: `Medio ${media.length + 1}`,
-        n: refractiveIndex,
-        color: getRandomMediumColor(),
+        name: `Medio ${medios.length + 1}`,
+        n: indiceDeRefraxion,
+        color: obtenerColorDeMedioAleatorio(),
         points: [],
         isDrawing: true
     };
 
-    media.push(medium);
-    currentMediumIndex = media.length - 1;
-    isDrawingMedium = true;
+    medios.push(medium);
+    indiceActualMedio = medios.length - 1;
+    estaDibujandoUnMedio = true;
 
-    instructions.innerHTML = `
+    instrucciones.innerHTML = `
         <span class="text-purple-400 font-bold">Dibujando medio</span><br>
         1. Haz clic para añadir vértices<br>
         2. Cierra haciendo clic cerca del primer punto
     `;
 
-    updateMediaList();
-    draw();
+    actualizarListaDeMedios();
+    dibujar();
 }
 
-function clearMedia() {
-    media = [];
-    isDrawingMedium = false;
-    currentMediumIndex = -1;
-    updateMediaList();
-    draw();
+function limpiarMedia() {
+    medios = [];
+    estaDibujandoUnMedio = false;
+    indiceActualMedio = -1;
+    actualizarListaDeMedios();
+    dibujar();
 }
 
-function updateMediaList() {
-    mediaList.innerHTML = '';
+function actualizarListaDeMedios() {
+    listaDeMedia.innerHTML = '';
 
-    media.forEach((medium, index) => {
+    medios.forEach((medium, index) => {
         const item = document.createElement('div');
         item.className = 'medium-item';
         item.innerHTML = `
@@ -363,15 +363,15 @@ function updateMediaList() {
             </div>
             <span class="text-cyan-400">n=${medium.n}</span>
         `;
-        mediaList.appendChild(item);
+        listaDeMedia.appendChild(item);
     });
 
-    if (media.length === 0) {
-        mediaList.innerHTML = '<div class="text-gray-500 text-center py-2">No hay medios</div>';
+    if (medios.length === 0) {
+        listaDeMedia.innerHTML = '<div class="text-gray-500 text-center py-2">No hay medios</div>';
     }
 }
 
-function getRandomMediumColor() {
+function obtenerColorDeMedioAleatorio() {
     const colors = [
         'rgba(59, 130, 246, 0.4)',  // Azul
         'rgba(16, 185, 129, 0.4)',  // Verde
@@ -383,13 +383,13 @@ function getRandomMediumColor() {
 }
 
 // Obtener medio en un punto
-function getMediumAtPoint(x, y) {
+function obtenerElMedioDelPunto(x, y) {
     const point = { x, y };
 
     // Verificar cada medio en orden inverso (el último dibujado está arriba)
-    for (let i = media.length - 1; i >= 0; i--) {
-        const medium = media[i];
-        if (!medium.isDrawing && isPointInPolygon(point, medium.points)) {
+    for (let i = medios.length - 1; i >= 0; i--) {
+        const medium = medios[i];
+        if (!medium.isDrawing && estaElPuntoEnElPoligono(point, medium.points)) {
             return i; // Está dentro de este medio
         }
     }
@@ -398,15 +398,15 @@ function getMediumAtPoint(x, y) {
 }
 
 // Calcular normal CORREGIDA para medios
-function getMediumNormal(p1, p2, mediumPoints, rayOrigin) {
+function obtenerNormalDelMedio(p1, p2, mediumPoints, rayOrigin) {
     // Vector de la arista
     const edge = { x: p2.x - p1.x, y: p2.y - p1.y };
     
     // Normal perpendicular (antihorario)
-    let normal = normalize({ x: -edge.y, y: edge.x });
+    let normal = normalizar({ x: -edge.y, y: edge.x });
     
     // Determinar si el rayo viene desde dentro o fuera del medio
-    const isInside = isPointInPolygon(rayOrigin, mediumPoints);
+    const isInside = estaElPuntoEnElPoligono(rayOrigin, mediumPoints);
     
     // Si el rayo viene desde dentro, la normal debe apuntar hacia afuera
     // Si viene desde fuera, la normal debe apuntar hacia dentro
@@ -422,7 +422,7 @@ function getMediumNormal(p1, p2, mediumPoints, rayOrigin) {
     // Si el testPoint está dentro del medio y el rayo viene desde fuera,
     // o si el testPoint está fuera y el rayo viene desde dentro,
     // entonces invertir la normal
-    const testInside = isPointInPolygon(testPoint, mediumPoints);
+    const testInside = estaElPuntoEnElPoligono(testPoint, mediumPoints);
     
     if ((testInside && !isInside) || (!testInside && isInside)) {
         normal = { x: -normal.x, y: -normal.y };
@@ -433,174 +433,174 @@ function getMediumNormal(p1, p2, mediumPoints, rayOrigin) {
 
 // ==================== UI CONTROLS ====================
 
-function updateAngle(val) {
-    if (isAnimating) stopAnimation();
+function actualizarAngulo(val) {
+    if (estaAnimando) detenerAnimacion();
     let num = parseInt(val);
     if (isNaN(num)) return;
     if (num < 1) num = 1;
     if (num > 179) num = 179;
 
-    laserAngle = num;
-    angleInput.value = num;
-    angleSlider.value = num;
-    draw();
+    anguloDelLaser = num;
+    inputDelAngulo.value = num;
+    sliderDelAngulo.value = num;
+    dibujar();
 }
 
-angleInput.addEventListener('input', (e) => updateAngle(e.target.value));
-angleInput.addEventListener('change', (e) => updateAngle(e.target.value));
+inputDelAngulo.addEventListener('input', (e) => actualizarAngulo(e.target.value));
+inputDelAngulo.addEventListener('change', (e) => actualizarAngulo(e.target.value));
 
-angleSlider.addEventListener('input', (e) => {
-    if (isAnimating) stopAnimation();
-    angleInput.value = e.target.value;
-    laserAngle = parseInt(e.target.value);
-    draw();
+sliderDelAngulo.addEventListener('input', (e) => {
+    if (estaAnimando) detenerAnimacion();
+    inputDelAngulo.value = e.target.value;
+    anguloDelLaser = parseInt(e.target.value);
+    dibujar();
 });
 
-function updateBounces(val) {
+function actualizarRebotes(val) {
     let num = parseInt(val);
     if (isNaN(num)) return;
     if (num < 1) num = 1;
     if (num > 1000) num = 1000;
-    maxBounces = num;
-    if (isAnimating) stopAnimation();
-    draw();
+    maximosRebotes = num;
+    if (estaAnimando) detenerAnimacion();
+    dibujar();
 }
 
-bounceInput.addEventListener('input', (e) => updateBounces(e.target.value));
-bounceInput.addEventListener('change', (e) => updateBounces(e.target.value));
+inputDeRebote.addEventListener('input', (e) => actualizarRebotes(e.target.value));
+inputDeRebote.addEventListener('change', (e) => actualizarRebotes(e.target.value));
 
-function updateSpeed(val) {
+function actualizarVelocidad(val) {
     const factor = parseInt(val);
-    animationSpeed = 0.001 + (factor / 100) * 0.08;
+    velocidadDeAnimacion = 0.001 + (factor / 100) * 0.08;
 }
-updateSpeed(speedSlider.value);
-speedSlider.addEventListener('input', (e) => updateSpeed(e.target.value));
+actualizarVelocidad(sliderDeVelocidad.value);
+sliderDeVelocidad.addEventListener('input', (e) => actualizarVelocidad(e.target.value));
 
-btnMinus.addEventListener('click', () => updateAngle(laserAngle - 1));
-btnPlus.addEventListener('click', () => updateAngle(laserAngle + 1));
+botonMenos.addEventListener('click', () => actualizarAngulo(anguloDelLaser - 1));
+botonMas.addEventListener('click', () => actualizarAngulo(anguloDelLaser + 1));
 
-btnConfigToggle.addEventListener('click', () => {
-    settingsPanel.classList.toggle('hidden');
-    if (settingsPanel.classList.contains('hidden')) {
-        btnConfigToggle.classList.remove('bg-slate-600', 'text-white');
-        btnConfigToggle.classList.add('bg-slate-700', 'text-cyan-400');
+botonToggleOpciones.addEventListener('click', () => {
+    panelDeOpciones.classList.toggle('hidden');
+    if (panelDeOpciones.classList.contains('hidden')) {
+        botonToggleOpciones.classList.remove('bg-slate-600', 'text-white');
+        botonToggleOpciones.classList.add('bg-slate-700', 'text-cyan-400');
     } else {
-        btnConfigToggle.classList.remove('bg-slate-700', 'text-cyan-400');
-        btnConfigToggle.classList.add('bg-slate-600', 'text-white');
+        botonToggleOpciones.classList.remove('bg-slate-700', 'text-cyan-400');
+        botonToggleOpciones.classList.add('bg-slate-600', 'text-white');
     }
 });
 
-btnReset.addEventListener('click', () => {
-    stopAnimation();
-    points = [];
-    media = [];
-    isClosed = false;
-    isDrawingMedium = false;
+botonReset.addEventListener('click', () => {
+    detenerAnimacion();
+    puntos = [];
+    medios = [];
+    estaCerrado = false;
+    estaDibujandoUnMedio = false;
     laser = null;
-    controls.classList.add('hidden');
-    statsDiv.classList.add('hidden');
-    settingsPanel.classList.add('hidden');
-    setSimulationMode('reflection');
-    instructions.innerHTML = `
+    controles.classList.add('hidden');
+    divEstadisticas.classList.add('hidden');
+    panelDeOpciones.classList.add('hidden');
+    establecerModoDeSimulacion('reflection');
+    instrucciones.innerHTML = `
         1. Haz clic en el área negra para añadir vértices.<br>
         2. Cierra el polígono haciendo clic cerca del punto inicial.
     `;
-    draw();
+    dibujar();
 });
 
 // Controles de modo
-btnModeReflection.addEventListener('click', () => setSimulationMode('reflection'));
-btnModeRefraction.addEventListener('click', () => setSimulationMode('refraction'));
+botonModoReflexion.addEventListener('click', () => establecerModoDeSimulacion('reflection'));
+botonModoRefraccion.addEventListener('click', () => establecerModoDeSimulacion('refraction'));
 
 // Controles de refracción
-nSlider.addEventListener('input', (e) => updateRefractiveIndex(e.target.value));
-btnAddMedium.addEventListener('click', addMedium);
-btnClearMedia.addEventListener('click', clearMedia);
+nSlider.addEventListener('input', (e) => actualizarIndiceDeRefraccion(e.target.value));
+botonAgregarMedio.addEventListener('click', agregarMedio);
+botonLimpiarMedia.addEventListener('click', limpiarMedia);
 
 // Inicializar índice de refracción
-updateRefractiveIndex(nSlider.value);
+actualizarIndiceDeRefraccion(nSlider.value);
 
 // ==================== ANIMACIÓN ====================
 
-btnAnimate.addEventListener('click', () => {
-    if (!isClosed || !laser) return;
-    startAnimation();
+botonAnimar.addEventListener('click', () => {
+    if (!estaCerrado || !laser) return;
+    iniciarAnimacion();
 });
 
-function startAnimation() {
-    if (isAnimating) cancelAnimationFrame(animationId);
-    isAnimating = true;
-    animationProgress = 0.0;
-    loopAnimation();
+function iniciarAnimacion() {
+    if (estaAnimando) cancelAnimationFrame(idDeAnimacion);
+    estaAnimando = true;
+    progresoDeAnimacion = 0.0;
+    loopAnimacion();
 }
 
-function stopAnimation() {
-    isAnimating = false;
-    animationProgress = 1.0;
-    if (animationId) cancelAnimationFrame(animationId);
-    draw();
+function detenerAnimacion() {
+    estaAnimando = false;
+    progresoDeAnimacion = 1.0;
+    if (idDeAnimacion) cancelAnimationFrame(idDeAnimacion);
+    dibujar();
 }
 
-function loopAnimation() {
-    if (!isAnimating) return;
+function loopAnimacion() {
+    if (!estaAnimando) return;
 
-    animationProgress += animationSpeed;
-    if (animationProgress >= 1.0) {
-        animationProgress = 1.0;
-        isAnimating = false;
+    progresoDeAnimacion += velocidadDeAnimacion;
+    if (progresoDeAnimacion >= 1.0) {
+        progresoDeAnimacion = 1.0;
+        estaAnimando = false;
     }
 
-    draw();
+    dibujar();
 
-    if (isAnimating) {
-        animationId = requestAnimationFrame(loopAnimation);
+    if (estaAnimando) {
+        idDeAnimacion = requestAnimationFrame(loopAnimacion);
     }
 }
 
 // ==================== DIBUJADO ====================
 
-function finishPolygonSetup() {
+function terminarCreacionDelPoligono() {
     // Asegurar orden antihorario
-    points = ensureCounterClockwise(points);
+    puntos = comprobarSentidoHorario(puntos);
 
-    instructions.innerHTML = `
+    instrucciones.innerHTML = `
         <span class="text-cyan-400 font-bold">¡Polígono cerrado!</span><br>
         Usa los controles para ajustar el experimento.
     `;
-    controls.classList.remove('hidden');
-    statsDiv.classList.remove('hidden');
+    controles.classList.remove('hidden');
+    divEstadisticas.classList.remove('hidden');
 
     // Posicionar láser en el centro de la primera pared
     laser = {
-        x: (points[0].x + points[1].x) / 2,
-        y: (points[0].y + points[1].y) / 2,
+        x: (puntos[0].x + puntos[1].x) / 2,
+        y: (puntos[0].y + puntos[1].y) / 2,
         wallIndex: 0
     };
 
-    draw();
+    dibujar();
 }
 
-function draw() {
+function dibujar() {
     // Fondo
     ctx.fillStyle = '#0f172a';
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, ancho, altura);
 
     // Grid
     ctx.strokeStyle = '#1e293b';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let x = 0; x < width; x += 50) {
+    for (let x = 0; x < ancho; x += 50) {
         ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
+        ctx.lineTo(x, altura);
     }
-    for (let y = 0; y < height; y += 50) {
+    for (let y = 0; y < altura; y += 50) {
         ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        ctx.lineTo(ancho, y);
     }
     ctx.stroke();
 
     // Dibujar medios
-    media.forEach(medium => {
+    medios.forEach(medium => {
         if (medium.points.length < 3) return;
 
         ctx.beginPath();
@@ -654,68 +654,68 @@ function draw() {
     });
 
     // Polígono principal
-    if (points.length > 0) {
+    if (puntos.length > 0) {
         ctx.beginPath();
-        ctx.strokeStyle = isClosed ? '#94a3b8' : '#cbd5e1';
+        ctx.strokeStyle = estaCerrado ? '#94a3b8' : '#cbd5e1';
         ctx.lineWidth = 3;
-        ctx.moveTo(points[0].x, points[0].y);
-        for (let i = 1; i < points.length; i++) {
-            ctx.lineTo(points[i].x, points[i].y);
+        ctx.moveTo(puntos[0].x, puntos[0].y);
+        for (let i = 1; i < puntos.length; i++) {
+            ctx.lineTo(puntos[i].x, puntos[i].y);
         }
-        if (isClosed) ctx.closePath();
+        if (estaCerrado) ctx.closePath();
         ctx.stroke();
 
         // Puntos del polígono
         ctx.fillStyle = '#f8fafc';
-        for (let p of points) {
+        for (let p of puntos) {
             ctx.beginPath();
             ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
             ctx.fill();
         }
 
         // Ayuda para cerrar
-        if (!isClosed && points.length > 2) {
+        if (!estaCerrado && puntos.length > 2) {
             ctx.beginPath();
             ctx.strokeStyle = '#64748b';
             ctx.setLineDash([5, 5]);
-            ctx.moveTo(points[points.length - 1].x, points[points.length - 1].y);
-            ctx.lineTo(points[0].x, points[0].y);
+            ctx.moveTo(puntos[puntos.length - 1].x, puntos[puntos.length - 1].y);
+            ctx.lineTo(puntos[0].x, puntos[0].y);
             ctx.stroke();
             ctx.setLineDash([]);
         }
     }
 
-    if (isClosed && laser) {
-        calculateAndDrawLaser();
+    if (estaCerrado && laser) {
+        calcularYDibujarLaser();
     }
 }
 
 // ==================== CÁLCULO DEL LÁSER ====================
 
-function calculateAndDrawLaser() {
+function calcularYDibujarLaser() {
     const pathSegments = [];
     let totalPathLength = 0;
     
     // Configuración inicial
-    const p1 = points[laser.wallIndex];
-    const p2 = points[(laser.wallIndex + 1) % points.length];
+    const p1 = puntos[laser.wallIndex];
+    const p2 = puntos[(laser.wallIndex + 1) % puntos.length];
     const wallVec = { x: p2.x - p1.x, y: p2.y - p1.y };
     const wallAngle = Math.atan2(wallVec.y, wallVec.x);
     
-    const rad = (laserAngle * Math.PI) / 180;
+    const rad = (anguloDelLaser * Math.PI) / 180;
     const globalAngle = wallAngle - Math.PI + rad;
     
     let rayDir = { x: Math.cos(globalAngle), y: Math.sin(globalAngle) };
     let rayOrigin = { x: laser.x, y: laser.y };
     
     // Medio actual (aire = 1.0)
-    let currentMedium = getMediumAtPoint(rayOrigin.x, rayOrigin.y);
-    let n1 = currentMedium === -1 ? 1.0 : media[currentMedium].n;
+    let currentMedium = obtenerElMedioDelPunto(rayOrigin.x, rayOrigin.y);
+    let n1 = currentMedium === -1 ? 1.0 : medios[currentMedium].n;
     
     let bounces = 0;
-    let maxIterations = maxBounces * 3; // Límite de seguridad
+    let maxIterations = maximosRebotes * 3; // Límite de seguridad
     
-    for (let iter = 0; iter < maxIterations && bounces < maxBounces; iter++) {
+    for (let iter = 0; iter < maxIterations && bounces < maximosRebotes; iter++) {
         const segmentN1 = n1;
         let closestHit = null;
         let minDist = Infinity;
@@ -726,12 +726,12 @@ function calculateAndDrawLaser() {
         
         // Buscar intersección más cercana
         // 1. Con el polígono principal
-        for (let i = 0; i < points.length; i++) {
+        for (let i = 0; i < puntos.length; i++) {
             if (iter === 0 && i === laser.wallIndex) continue;
             
-            const w1 = points[i];
-            const w2 = points[(i + 1) % points.length];
-            const hit = getIntersection(rayOrigin, rayDir, w1, w2);
+            const w1 = puntos[i];
+            const w2 = puntos[(i + 1) % puntos.length];
+            const hit = calcularInterseccion(rayOrigin, rayDir, w1, w2);
             
             if (hit && hit.dist < minDist && hit.dist > 0.001) {
                 minDist = hit.dist;
@@ -740,14 +740,14 @@ function calculateAndDrawLaser() {
                 
                 const dx = w2.x - w1.x;
                 const dy = w2.y - w1.y;
-                hitWallVec = normalize({ x: dx, y: dy });
+                hitWallVec = normalizar({ x: dx, y: dy });
                 
                 // Normal que apunta hacia adentro del polígono
-                let normal = normalize({ x: -dy, y: dx });
+                let normal = normalizar({ x: -dy, y: dx });
                 
                 // Ajustar dirección
                 const toHit = { x: hit.x - rayOrigin.x, y: hit.y - rayOrigin.y };
-                if (dot(toHit, normal) < 0) {
+                if (productoPunto(toHit, normal) < 0) {
                     normal = { x: -normal.x, y: -normal.y };
                 }
                 
@@ -756,15 +756,15 @@ function calculateAndDrawLaser() {
         }
         
         // 2. Con medios (solo en modo refracción)
-        if (simulationMode === 'refraction') {
-            for (let i = 0; i < media.length; i++) {
-                const medium = media[i];
+        if (modoDeSimulacion === 'refraction') {
+            for (let i = 0; i < medios.length; i++) {
+                const medium = medios[i];
                 if (medium.isDrawing || medium.points.length < 3) continue;
                 
                 for (let j = 0; j < medium.points.length; j++) {
                     const w1 = medium.points[j];
                     const w2 = medium.points[(j + 1) % medium.points.length];
-                    const hit = getIntersection(rayOrigin, rayDir, w1, w2);
+                    const hit = calcularInterseccion(rayOrigin, rayDir, w1, w2);
                     
                     if (hit && hit.dist < minDist && hit.dist > 0.001) {
                         minDist = hit.dist;
@@ -773,10 +773,10 @@ function calculateAndDrawLaser() {
                         hitMediumIdx = i;
                         
                         // Calcular normal para el medio
-                        hitNormal = getMediumNormal(w1, w2, medium.points, rayOrigin);
+                        hitNormal = obtenerNormalDelMedio(w1, w2, medium.points, rayOrigin);
                         const dx = w2.x - w1.x;
                         const dy = w2.y - w1.y;
-                        hitWallVec = normalize({ x: dx, y: dy });
+                        hitWallVec = normalizar({ x: dx, y: dy });
                     }
                 }
             }
@@ -806,7 +806,7 @@ function calculateAndDrawLaser() {
             n2 = n1;
             isRefraction = false;
         } else if (hitType === 'medium') {
-            const medium = media[hitMediumIdx];
+            const medium = medios[hitMediumIdx];
             
             // Determinar si estamos entrando o saliendo del medio
             const rayInMedium = currentMedium === hitMediumIdx;
@@ -822,7 +822,7 @@ function calculateAndDrawLaser() {
             }
             
             // Siempre intentar refracción en modo refracción
-            isRefraction = simulationMode === 'refraction';
+            isRefraction = modoDeSimulacion === 'refraction';
             
             // Caso especial: si n1 == n2, no hay refracción real
             if (Math.abs(n1 - n2) < 0.0001) {
@@ -832,12 +832,12 @@ function calculateAndDrawLaser() {
         
         // Asegurar que la normal esté orientada hacia el medio de origen (hacia el rayo incidente)
         let normalForCalc = hitNormal;
-        if (dot(rayDir, normalForCalc) > 0) {
+        if (productoPunto(rayDir, normalForCalc) > 0) {
             normalForCalc = { x: -normalForCalc.x, y: -normalForCalc.y };
         }
 
         // Calcular ángulo de incidencia usando la normal orientada
-        const cosTheta = Math.abs(dot(normalize(rayDir), normalize(hitWallVec)));
+        const cosTheta = Math.abs(productoPunto(normalizar(rayDir), normalizar(hitWallVec)));
         const incidentAngle = Math.acos(Math.min(1, cosTheta)) * 180 / Math.PI;
 
         // Determinar nueva dirección del rayo
@@ -846,14 +846,14 @@ function calculateAndDrawLaser() {
 
         if (isRefraction && Math.abs(n1 - n2) > 0.001) {
             // Intentar refracción usando la normal orientada
-            const refractedDir = refract(rayDir, normalForCalc, n1, n2);
+            const refractedDir = refractar(rayDir, normalForCalc, n1, n2);
 
             if (refractedDir) {
                 // Refracción exitosa
                 newRayDir = refractedDir;
 
                 // Angulo refractado respecto a la PARED
-                const cosr = Math.min(1, Math.abs(dot(refractedDir, hitWallVec)));
+                const cosr = Math.min(1, Math.abs(productoPunto(refractedDir, hitWallVec)));
                 refractedAngle = Math.acos(cosr) * 180 / Math.PI;
 
                 // Actualizar medio actual si cruzamos un medio
@@ -864,11 +864,11 @@ function calculateAndDrawLaser() {
                         currentMedium = -1;
                     }
                     // Actualizar n1 para el siguiente segmento
-                    n1 = currentMedium === -1 ? 1.0 : media[currentMedium].n;
+                    n1 = currentMedium === -1 ? 1.0 : medios[currentMedium].n;
                 }
             } else {
                 // Reflexión interna total
-                newRayDir = reflect(rayDir, normalForCalc);
+                newRayDir = reflejar(rayDir, normalForCalc);
                 bounces++;
             }
         } else {
@@ -884,10 +884,10 @@ function calculateAndDrawLaser() {
                     currentMedium = -1;
                 }
                 // Actualizar n1 para el siguiente segmento
-                n1 = currentMedium === -1 ? 1.0 : media[currentMedium].n;
+                n1 = currentMedium === -1 ? 1.0 : medios[currentMedium].n;
             } else {
                 // Reflexión normal
-                newRayDir = reflect(rayDir, normalForCalc);
+                newRayDir = reflejar(rayDir, normalForCalc);
                 bounces++;
             }
         }
@@ -915,7 +915,7 @@ function calculateAndDrawLaser() {
         totalPathLength += minDist;
         
         // Actualizar para siguiente iteración
-        rayDir = normalize(newRayDir);
+        rayDir = normalizar(newRayDir);
         rayOrigin = { x: closestHit.x, y: closestHit.y };
     }
     
@@ -934,7 +934,7 @@ function calculateAndDrawLaser() {
     
     // Dibujar trayectoria
     let drawnLength = 0;
-    const lengthToDraw = totalPathLength * animationProgress;
+    const lengthToDraw = totalPathLength * progresoDeAnimacion;
     
     ctx.beginPath();
     ctx.moveTo(laser.x, laser.y);
@@ -1001,7 +1001,7 @@ function calculateAndDrawLaser() {
                 
                 // Dibujar ángulo refractado si existe
                 if (seg.refractedAngle !== null) {
-                    drawRefractionAngle(seg.hitPoint, seg.hitWallVec, seg.rayDirOut, seg.refractedAngle, seg.n1, seg.n2);
+                    dibujarAnguloDeRefraccion(seg.hitPoint, seg.hitWallVec, seg.rayDirOut, seg.refractedAngle, seg.n1, seg.n2);
                 }
             } else {
                 ctx.fillStyle = '#fbbf24';
@@ -1012,29 +1012,29 @@ function calculateAndDrawLaser() {
             if (i < pathSegments.length - 1) {
 
                 // A. Ángulo de incidencia (Entrada)
-                drawIncidenceAngle(seg.hitPoint, seg.hitWallVec, seg.rayDirIn, seg.incidentAngle);
+                dibujarAnguloDeIncidencia(seg.hitPoint, seg.hitWallVec, seg.rayDirIn, seg.incidentAngle);
                 
                 // B. Ángulo de reflexión (Salida) - Espejo
                 if (!seg.isRefraction && seg.rayDirOut) {
                     const rayOutInverted = { x: -seg.rayDirOut.x, y: -seg.rayDirOut.y };
-                    drawIncidenceAngle(seg.hitPoint, seg.hitWallVec, rayOutInverted, seg.incidentAngle);
+                    dibujarAnguloDeIncidencia(seg.hitPoint, seg.hitWallVec, rayOutInverted, seg.incidentAngle);
                 }
                 
                 // C. Ángulo de refracción (si aplica)
                 if (seg.refractedAngle !== null) {
-                    drawRefractionAngle(seg.hitPoint, seg.hitWallVec, seg.rayDirOut, seg.refractedAngle, seg.n1, seg.n2);
+                    dibujarAnguloDeRefraccion(seg.hitPoint, seg.hitWallVec, seg.rayDirOut, seg.refractedAngle, seg.n1, seg.n2);
                 }
 
             }
         }
     }
     
-    bounceCountSpan.textContent = bounces;
+    spanContadorRebotes.textContent = bounces;
 }
 
 // ==================== FUNCIONES DE ÁNGULOS ====================
 
-function drawIncidenceAngle(pos, wallVec, rayDir, angleDeg) {
+function dibujarAnguloDeIncidencia(pos, wallVec, rayDir, angleDeg) {
     const radius = 25;
 
     ctx.save();
@@ -1042,14 +1042,14 @@ function drawIncidenceAngle(pos, wallVec, rayDir, angleDeg) {
 
     // 1. Normalizamos vectores
     // Invertimos rayDir porque queremos el vector que "sale" del punto hacia atrás
-    let vRay = normalize({ x: -rayDir.x, y: -rayDir.y });
-    let vWall = normalize(wallVec);
+    let vRay = normalizar({ x: -rayDir.x, y: -rayDir.y });
+    let vWall = normalizar(wallVec);
 
     // 2. DETECCIÓN Y CORRECCIÓN DE OBTUSO
     // Calculamos el producto punto para ver si apuntan en direcciones opuestas
     // Si el dot es negativo, el ángulo es > 90 (obtuso).
     // En ese caso, invertimos el vector de la pared para usar el lado "agudo".
-    if (dot(vRay, vWall) < 0) {
+    if (productoPunto(vRay, vWall) < 0) {
         vWall = { x: -vWall.x, y: -vWall.y };
     }
 
@@ -1106,20 +1106,20 @@ function drawIncidenceAngle(pos, wallVec, rayDir, angleDeg) {
     ctx.restore();
 }
 
-function drawRefractionAngle(pos, wallVec, refractedDir, angleDeg, n1, n2) {
+function dibujarAnguloDeRefraccion(pos, wallVec, refractedDir, angleDeg, n1, n2) {
     const radius = 30;
 
     ctx.save();
     ctx.translate(pos.x, pos.y);
 
     // 1. Normalización
-    let vRay = normalize(refractedDir);
-    let vWall = normalize(wallVec);
+    let vRay = normalizar(refractedDir);
+    let vWall = normalizar(wallVec);
 
     // 2. CORRECCIÓN DE OBTUSO (Igual que en reflexión)
     // Si el ángulo entre el rayo saliente y la pared es > 90,
     // invertimos la pared visualmente para graficar el ángulo agudo.
-    if (dot(vRay, vWall) < 0) {
+    if (productoPunto(vRay, vWall) < 0) {
         vWall = { x: -vWall.x, y: -vWall.y };
     }
 
