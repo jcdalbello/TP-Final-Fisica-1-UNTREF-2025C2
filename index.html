@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulador de Reflexión de Luz</title>
-    <!-- Librería externa (Tailwind CSS) -->
+    <title>Simulador de Reflexión y Refracción de Luz</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Vinculación a tu archivo de estilos personalizado -->
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -26,6 +24,21 @@
 
     <div id="controls" class="hidden space-y-5">
         
+        <!-- Selector de Modo -->
+        <div>
+            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Modo de Simulación</label>
+            <div class="mode-selector">
+                <button id="btnModeReflection" class="mode-btn active" data-mode="reflection">
+                    <span class="medium-icon" style="background: #22d3ee;"></span>
+                    Reflexión
+                </button>
+                <button id="btnModeRefraction" class="mode-btn" data-mode="refraction">
+                    <span class="medium-icon" style="background: #60a5fa;"></span>
+                    Refracción
+                </button>
+            </div>
+        </div>
+
         <!-- Control Principal de Ángulo -->
         <div>
             <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Ángulo de Disparo</label>
@@ -49,14 +62,43 @@
             </div>
         </div>
 
-        <!-- Panel Desplegable de Configuración -->
-        <div id="settingsPanel" class="hidden mt-3 p-3 transition-all duration-300 bg-slate-800/50 rounded-lg border border-slate-700/50 space-y-4">
+        <!-- Controles de Refracción -->
+        <div id="refractionControls" class="hidden space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                    Índice de Refracción (n)
+                    <span id="nValueDisplay" class="text-cyan-400 ml-2">1.5</span>
+                </label>
+                <input type="range" id="nSlider" min="100" max="300" value="150" class="w-full">
+                <div class="flex justify-between text-[10px] text-gray-500 mt-1 px-1">
+                    <span>Aire: 1.0</span>
+                    <span>Vidrio: 1.5</span>
+                    <span>Diamante: 2.42</span>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3">
+                <button id="btnAddMedium" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-3 rounded-lg transition text-sm">
+                    + Añadir Medio
+                </button>
+                <button id="btnClearMedia" class="bg-red-900/40 hover:bg-red-900/60 text-red-200 font-semibold py-2 px-3 rounded-lg transition text-sm">
+                    Limpiar Medios
+                </button>
+            </div>
+            
+            <div id="mediaList" class="text-xs text-gray-300 max-h-32 overflow-y-auto">
+                <!-- Lista de medios se generará aquí -->
+            </div>
+        </div>
+
+        <!-- Panel de Configuración -->
+        <div id="settingsPanel" class="hidden mt-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 space-y-4">
             
             <!-- Slider Ángulo -->
             <div>
                 <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Ajuste Fino Ángulo</label>
                 <input type="range" id="angleSlider" min="1" max="179" value="45">
-                <div class="flex justify-between text-[10px] text-gray-500 mt-1 font-mono px-1">
+                <div class="flex justify-between text-[10px] text-gray-500 mt-1 px-1">
                     <span>1°</span>
                     <span>179°</span>
                 </div>
@@ -64,20 +106,19 @@
 
             <!-- Input Cantidad de Rebotes -->
             <div class="border-t border-slate-700 pt-3">
-                <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Límite de Rebotes</label>
+                <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Límite de Eventos</label>
                 <div class="flex items-center bg-slate-900 rounded-lg border border-slate-600 p-1 shadow-inner">
                     <input type="number" id="bounceInput" min="1" max="1000" value="10" 
-                           class="w-full bg-transparent text-white font-mono text-sm text-center focus:outline-none py-1 placeholder-slate-500"
-                           placeholder="Ej: 50">
+                           class="w-full bg-transparent text-white font-mono text-sm text-center focus:outline-none py-1">
                 </div>
-                <p class="text-[9px] text-gray-500 mt-1 text-center">Valor recomendado: 1 - 200</p>
+                <p class="text-[9px] text-gray-500 mt-1 text-center">Reflexiones/Refracciones</p>
             </div>
 
             <!-- Slider Velocidad -->
             <div class="border-t border-slate-700 pt-3">
                 <label class="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Velocidad Animación</label>
                 <input type="range" id="speedSlider" min="1" max="100" value="30">
-                <div class="flex justify-between text-[10px] text-gray-500 mt-1 font-mono px-1">
+                <div class="flex justify-between text-[10px] text-gray-500 mt-1 px-1">
                     <span>Lento</span>
                     <span>Rápido</span>
                 </div>
@@ -106,19 +147,18 @@
             </button>
         </div>
         
-        <p class="text-xs text-gray-500 text-center italic border-t border-slate-700 pt-3">
+        <p class="text-xs text-gray-500 text-center italic border-t border-slate-700 pt-3" id="modeInstructions">
             * Haz clic en las paredes para reposicionar el láser.
         </p>
     </div>
     
     <div id="stats" class="mt-4 text-xs font-mono text-emerald-400 hidden bg-slate-900/50 p-2 rounded text-center border border-emerald-900/30">
-        Rebotes: <span id="bounceCount" class="font-bold text-lg">0</span>
+        Eventos: <span id="bounceCount" class="font-bold text-lg">0</span>
     </div>
 </div>
 
 <canvas id="canvas"></canvas>
 
-<!-- Enlazamos el archivo Javascript externo -->
 <script src="js/script.js"></script>
 
 </body>
