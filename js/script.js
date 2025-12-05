@@ -716,6 +716,7 @@ function calculateAndDrawLaser() {
     let maxIterations = maxBounces * 3; // Límite de seguridad
     
     for (let iter = 0; iter < maxIterations && bounces < maxBounces; iter++) {
+        const segmentN1 = n1;
         let closestHit = null;
         let minDist = Infinity;
         let hitNormal = null;
@@ -836,9 +837,9 @@ function calculateAndDrawLaser() {
         }
 
         // Calcular ángulo de incidencia usando la normal orientada
-        const cosi = Math.max(-1, Math.min(1, -dot(rayDir, normalForCalc)));
-        const incidentAngle = Math.acos(cosi) * 180 / Math.PI;
-        
+        const cosTheta = Math.abs(dot(normalize(rayDir), normalize(hitWallVec)));
+        const incidentAngle = Math.acos(Math.min(1, cosTheta)) * 180 / Math.PI;
+
         // Determinar nueva dirección del rayo
         let newRayDir = null;
         let refractedAngle = null;
@@ -851,8 +852,8 @@ function calculateAndDrawLaser() {
                 // Refracción exitosa
                 newRayDir = refractedDir;
 
-                // Ángulo refractado: calcular respecto de la normal del lado transmitido (opuesto)
-                const cosr = Math.max(-1, Math.min(1, -dot(refractedDir, { x: -normalForCalc.x, y: -normalForCalc.y })));
+                // Angulo refractado respecto a la PARED
+                const cosr = Math.min(1, Math.abs(dot(refractedDir, hitWallVec)));
                 refractedAngle = Math.acos(cosr) * 180 / Math.PI;
 
                 // Actualizar medio actual si cruzamos un medio
@@ -896,7 +897,7 @@ function calculateAndDrawLaser() {
             p1: { ...rayOrigin },
             p2: { x: closestHit.x, y: closestHit.y },
             length: minDist,
-            n1: n1,
+            n1: segmentN1,
             n2: n2,
             hitPoint: { x: closestHit.x, y: closestHit.y },
             hitNormal: hitNormal,
@@ -1008,8 +1009,23 @@ function calculateAndDrawLaser() {
                 ctx.fill();
             }
             
-            // Dibujar ángulo de incidencia
-            drawIncidenceAngle(seg.hitPoint, seg.hitWallVec, seg.rayDirIn, seg.incidentAngle);
+            if (i < pathSegments.length - 1) {
+
+                // A. Ángulo de incidencia (Entrada)
+                drawIncidenceAngle(seg.hitPoint, seg.hitWallVec, seg.rayDirIn, seg.incidentAngle);
+                
+                // B. Ángulo de reflexión (Salida) - Espejo
+                if (!seg.isRefraction && seg.rayDirOut) {
+                    const rayOutInverted = { x: -seg.rayDirOut.x, y: -seg.rayDirOut.y };
+                    drawIncidenceAngle(seg.hitPoint, seg.hitWallVec, rayOutInverted, seg.incidentAngle);
+                }
+                
+                // C. Ángulo de refracción (si aplica)
+                if (seg.refractedAngle !== null) {
+                    drawRefractionAngle(seg.hitPoint, seg.hitWallVec, seg.rayDirOut, seg.refractedAngle, seg.n1, seg.n2);
+                }
+
+            }
         }
     }
     
@@ -1024,27 +1040,46 @@ function drawIncidenceAngle(pos, wallVec, rayDir, angleDeg) {
     ctx.save();
     ctx.translate(pos.x, pos.y);
 
-    const vRay = { x: -rayDir.x, y: -rayDir.y }; // Dirección inversa
-    const vWall = normalize(wallVec);
+    // 1. Normalizamos vectores
+    // Invertimos rayDir porque queremos el vector que "sale" del punto hacia atrás
+    let vRay = normalize({ x: -rayDir.x, y: -rayDir.y });
+    let vWall = normalize(wallVec);
 
+    // 2. DETECCIÓN Y CORRECCIÓN DE OBTUSO
+    // Calculamos el producto punto para ver si apuntan en direcciones opuestas
+    // Si el dot es negativo, el ángulo es > 90 (obtuso).
+    // En ese caso, invertimos el vector de la pared para usar el lado "agudo".
+    if (dot(vRay, vWall) < 0) {
+        vWall = { x: -vWall.x, y: -vWall.y };
+    }
+
+    // 3. Calculamos ángulos para el canvas
     const angWall = Math.atan2(vWall.y, vWall.x);
     const angRay = Math.atan2(vRay.y, vRay.x);
 
+    // 4. Calcular la diferencia para el arco
     let diff = angRay - angWall;
+    
+    // Normalizar diff para que esté entre -PI y PI
+    // Esto asegura que el arco siempre tome el camino más corto
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
 
-    // Dibujar arco
+    // 5. Dibujar
     ctx.beginPath();
     ctx.strokeStyle = '#fbbf24';
     ctx.lineWidth = 2;
+    
+    // El último parámetro (diff < 0) determina la dirección del reloj
+    // para asegurar que siempre pintamos el sector interior
     ctx.arc(0, 0, radius, angWall, angWall + diff, diff < 0);
     ctx.stroke();
 
-    // Texto del ángulo
+    // Texto
     ctx.fillStyle = '#fbbf24';
     ctx.font = 'bold 11px monospace';
 
+    // Posición del texto (en la bisectriz del ángulo)
     const midAngle = angWall + diff / 2;
     const textDist = radius + 15;
     const tx = Math.cos(midAngle) * textDist;
@@ -1052,10 +1087,18 @@ function drawIncidenceAngle(pos, wallVec, rayDir, angleDeg) {
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    
+    // Limpiamos un pequeño recuadro detrás del texto para que se lea bien sobre las líneas
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(tx, ty, 8, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    
+    ctx.fillStyle = '#fbbf24';
     ctx.fillText(Math.round(angleDeg) + "°", tx, ty);
 
     // Punto central
-    ctx.fillStyle = '#fbbf24';
     ctx.beginPath();
     ctx.arc(0, 0, 3, 0, Math.PI * 2);
     ctx.fill();
@@ -1069,8 +1112,16 @@ function drawRefractionAngle(pos, wallVec, refractedDir, angleDeg, n1, n2) {
     ctx.save();
     ctx.translate(pos.x, pos.y);
 
-    const vRay = refractedDir;
-    const vWall = normalize(wallVec);
+    // 1. Normalización
+    let vRay = normalize(refractedDir);
+    let vWall = normalize(wallVec);
+
+    // 2. CORRECCIÓN DE OBTUSO (Igual que en reflexión)
+    // Si el ángulo entre el rayo saliente y la pared es > 90,
+    // invertimos la pared visualmente para graficar el ángulo agudo.
+    if (dot(vRay, vWall) < 0) {
+        vWall = { x: -vWall.x, y: -vWall.y };
+    }
 
     const angWall = Math.atan2(vWall.y, vWall.x);
     const angRay = Math.atan2(vRay.y, vRay.x);
@@ -1079,7 +1130,7 @@ function drawRefractionAngle(pos, wallVec, refractedDir, angleDeg, n1, n2) {
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
 
-    // Dibujar arco de refracción
+    // 3. Dibujar arco
     ctx.beginPath();
     ctx.strokeStyle = '#8b5cf6';
     ctx.lineWidth = 3;
@@ -1088,34 +1139,40 @@ function drawRefractionAngle(pos, wallVec, refractedDir, angleDeg, n1, n2) {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Texto con índices
+    // 4. Textos
     ctx.fillStyle = '#8b5cf6';
     ctx.font = 'bold 12px monospace';
 
     const midAngle = angWall + diff / 2;
-    const textDist = radius + 20;
+    const textDist = radius + 25; // Un poco más lejos para dar espacio
     const tx = Math.cos(midAngle) * textDist;
     const ty = Math.sin(midAngle) * textDist;
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Fondo para legibilidad
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
-    ctx.fillRect(tx - 45, ty - 15, 90, 30);
+    // Fondo oscuro para que se lea bien sobre la grilla
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.beginPath();
+    // Hacemos un fondo redondeado adaptable
+    ctx.roundRect(tx - 45, ty - 12, 90, 24, 4);
+    ctx.fill();
 
     // Texto del ángulo
-    ctx.fillStyle = '#8b5cf6';
-    ctx.fillText(Math.round(angleDeg) + "°", tx, ty - 5);
+    ctx.fillStyle = '#e2e8f0'; // Blanco suave
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText(Math.round(angleDeg) + "°", tx - 20, ty);
 
-    // Índices de refracción
+    // Índices de refracción (más pequeños a la derecha)
+    ctx.fillStyle = '#a78bfa'; // Violeta claro
     ctx.font = '10px monospace';
-    ctx.fillText(`n₁=${n1.toFixed(1)}→n₂=${n2.toFixed(1)}`, tx, ty + 10);
+    ctx.textAlign = 'left';
+    ctx.fillText(`${n1.toFixed(1)}→${n2.toFixed(1)}`, tx + 5, ty + 1);
 
     // Punto central
     ctx.fillStyle = '#8b5cf6';
     ctx.beginPath();
-    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.arc(0, 0, 4, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
